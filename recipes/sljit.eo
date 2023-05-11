@@ -1,0 +1,37 @@
+VERSION := "master"
+SUMMARY := "Platform independent low-level JIT compiler"
+
+archive := (download "https://github.com/zherczeg/sljit/archive/{VERSION}.tar.gz")
+source-path := (commonpath (extract archive))
+
+fn shared-library (libname)
+    then
+        bindir := "{source-path}/bin"
+        cmd := (shell source-path)
+        cmd "make -j{cpu-core-count}"
+        cmd "gcc -shared -o ./bin/{libname} ./bin/sljitLir.o"
+        "{bindir}/{libname}"
+
+package sljit
+    summary SUMMARY
+    platform linux unknown
+    version VERSION
+
+    libname := "libsljit.so"
+    alias "/lib/{libname}" (shared-library libname)
+
+    alias "include/sljitConfig.h"         "{source-path}/sljit_src/sljitConfig.h"
+    alias "include/sljitConfigInternal.h" "{source-path}/sljit_src/sljitConfigInternal.h"
+    alias "include/sljitLir.h"            "{source-path}/sljit_src/sljitLir.h"
+
+package sljit
+    summary SUMMARY
+    platform windows-mingw
+    version VERSION
+
+    libname := "sljit.dll"
+    alias "/lib/{libname}" (shared-library libname)
+
+    alias "include/sljitConfig.h"         "{source-path}/sljit_src/sljitConfig.h"
+    alias "include/sljitConfigInternal.h" "{source-path}/sljit_src/sljitConfigInternal.h"
+    alias "include/sljitLir.h"            "{source-path}/sljit_src/sljitLir.h"
