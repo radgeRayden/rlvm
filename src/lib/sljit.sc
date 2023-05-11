@@ -71,3 +71,9 @@ foreign
         SLJIT_IS_IMM  := (arg) -> (arg == SLJIT_IMM)
         SLJIT_IS_REG_PAIR := (arg) -> ((arg >> 8) != 0)
         SLJIT_SET := (condition) -> (condition << 10)
+
+        get_compiler_error := (compiler) -> compiler.error
+        get_allocator_data := (compiler) -> compiler.allocator_data
+        get_exec_allocator_data := (compiler) -> compiler.exec_allocator_data
+        get_executable_offset := (compiler) -> compiler.executable_offset
+        get_generated_code_size := (compiler) -> compiler.executable_size
