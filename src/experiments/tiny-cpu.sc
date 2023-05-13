@@ -82,7 +82,36 @@ fn parse-symbol (input idx)
         countof input
 
 fn parse-string-literal (input idx)
-    _ S"" (idx + 1)
+    local str : String
+    for i in (range idx (countof input))
+        c := input @ i
+
+        if (c == "\n")
+            error "parser error: unexpected end of line inside string literal"
+
+        if (c == "\"")
+            return str (i + 1)
+
+        if (c == "\\")
+            let actual-char =
+                switch (input @ (i + 1))
+                case char"n"
+                    char"\n"
+                case char"t"
+                    char"\t"
+                case char"\\"
+                    char"\\"
+                default
+                    error "parser error: unknown character escape in string literal"
+
+            'append str actual-char
+
+            next := i + 2
+            repeat (next as usize)
+
+        'append str c
+
+    error "parser error: incomplete string literal, lacks closing quote"
 
 fn parse-integer (input idx positive?)
     vvv bind value
@@ -136,7 +165,7 @@ fn next-token (input idx)
         number next-idx := parse-integer input (idx + 1) false
         _ (TokenKind.Integer number) next-idx
     elseif (c == "\"")
-        str next-idx := parse-string-literal input idx
+        str next-idx := parse-string-literal input (idx + 1)
         _ (TokenKind.StringLiteral str) next-idx
     elseif (c == ",")
         _ (TokenKind.Delimiter) (idx + 1)
