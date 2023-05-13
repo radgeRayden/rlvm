@@ -32,7 +32,7 @@ struct Instruction
     dst : DestinationOperand
 
 global program1 : String
-    """"#define PRINT 0x1
+    """"#define PRINT 0x01
         .asciiz msg "hello, world\n"
 
         mov acc, msg
@@ -51,6 +51,9 @@ inline letter? (c)
 
 inline digit? (c)
     c >= char"0" and c <= char"9"
+
+inline hex-digit? (c)
+    (digit? c) or (c >= char"a" and c <= char"f") or (c >= char"A" and c <= char"F")
 
 inline whitespace? (c)
     c == " " or c == "\t"
@@ -81,7 +84,7 @@ fn parse-symbol (input idx)
 fn parse-string-literal (input idx)
     _ S"" (idx + 1)
 
-fn parse-integer (input idx)
+fn parse-integer (input idx positive?)
     vvv bind value
     if ((input @ idx == char"0") and (input @ (idx + 1) == char"x")) # is hex?
         first-digit := input @ (idx + 2)
@@ -89,22 +92,33 @@ fn parse-integer (input idx)
             error "parser error: incomplete integer literal"
         fold (value = 0) for i in (range (idx + 2) (countof input))
             d := input @ i
+
             if ((whitespace? d) or d == "\n")
-                return value i
-            if (not (digit? d))
+                return (positive? value -value) i
+
+            if (not (hex-digit? d))
                 error "parser error: extraneous character in integer literal"
-            (value * 16) + ((d - char"0") as i32)
+
+            let next-value =
+                if (digit? d)
+                    d - char"0"
+                elseif (d < char"a")
+                    10:i8 + d - char"A"
+                else
+                    10:i8 + d - char"a"
+
+            (value * 16) + (next-value as i32)
     else
         # decimal
         fold (value = 0) for i in (range idx (countof input))
             d := input @ i
             if ((whitespace? d) or d == "\n")
-                return value i
+                return (positive? value -value) i
             if (not (digit? d))
                 error "parser error: extraneous character in integer literal"
             (value * 10) + ((d - char"0") as i32)
 
-    _ value (countof input)
+    _ (positive? value -value) (countof input)
 
 fn next-token (input idx)
     idx := consume-whitespace input idx
@@ -116,7 +130,10 @@ fn next-token (input idx)
         directive next-idx := parse-symbol input (idx + 1)
         _ (TokenKind.Directive directive) next-idx
     elseif (digit? c)
-        number next-idx := parse-integer input idx
+        number next-idx := parse-integer input idx true
+        _ (TokenKind.Integer number) next-idx
+    elseif (c == "-")
+        number next-idx := parse-integer input (idx + 1) false
         _ (TokenKind.Integer number) next-idx
     elseif (c == "\"")
         str next-idx := parse-string-literal input idx
