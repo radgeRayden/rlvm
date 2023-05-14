@@ -11,25 +11,7 @@ using import Option
 using import String
 using import struct
 
-spice Scope->StringMap (valueT scope)
-    scope as:= Scope
-
-    expr :=
-        spice-quote
-            local strmap : (Map String valueT)
-
-    vvv bind expr
-    fold (expr = expr) for k v in scope
-        k := k as Symbol as string
-        spice-quote
-            expr
-            ('set strmap (String [k]) v)
-
-    spice-quote
-        expr
-        strmap
-
-run-stage;
+import .instructions
 
 enum TokenKind
     Directive     : String
@@ -40,6 +22,7 @@ enum TokenKind
     Delimiter
     EOL
     EOF
+    None
     NotImplemented
 
     inline expect (...)
@@ -102,27 +85,14 @@ struct Operation
     arg1  : (Option TokenKind)
     arg2  : (Option TokenKind)
 
-struct InstructionInfo
-    mnemonic : String
-    opcode : u8
-    argc : i32
-
 global program1 : String
     """".define PRINT 0x01
         .asciiz msg "\thello, \"world\"\n"
         .bytes  arr 0x20, 0x93, 0x97
 
         start:
-        mov acc, msg ;; this is a comment
+        load acc, msg ;; this is a comment
         int PRINT
-
-fn execute-instruction (ins)
-    switch ins.opcode
-    case 'mov
-    case 'int
-    default
-        hide-traceback;
-        error "invalid instruction"
 
 inline letter? (c)
     c >= char"A" and c <= char"Z" or c >= char"a" and c <= char"z"
@@ -300,10 +270,18 @@ fn next-token (input idx)
 
 
 global define-map : (Map String TokenKind)
-global labels : (Map String usize)
-global bytecode : (Array u8)
+global labels     : (Map String usize)
+global RAM-image  : (Array u8)
+global bytecode   : (Array u8)
+global ins-info = (instructions.build-instruction-table)
+
+enum CompilationError plain
+    UnknownRegister
+
 
 fn compile-op (op)
+    raising CompilationError
+
     inline getargs (argc)
         static-if (argc == 1)
             'force-unwrap op.arg1
@@ -314,12 +292,48 @@ fn compile-op (op)
     inline extract (v T)
         'unsafe-extract-payload v T
 
-    mnemonic := (bitcast (storagecast (hash op.mnemonic)) Symbol)
-    switch mnemonic
-    case 'define
+    inline resolve-symbol (sym)
+        'getdefault define-map sym (TokenKind.None)
+
+    inline info (ins)
+        'getdefault ins-info ins (instructions.InstructionInfo)
+
+    inline get-register (name)
+        match name
+        case "acc"
+            0x00
+        case "r0"
+            0x01
+        case "r1"
+            0x02
+        case "r2"
+            0x03
+        case "r3"
+            0x04
+        case "sh"
+            0x05
+        default
+            raise CompilationError.UnknownRegister
+
+    switch op.kind
+    case OperationKind.Define
         arg1 arg2 := getargs 2
         sym := extract arg1 String
         'set define-map (copy sym) (copy arg2)
+    case OperationKind.String
+        # copy string to RAM image
+        if (('last op.mnemonic) == "z")
+            # add zero
+    case OperationKind.Bytes
+        # copy bytes to RAM image
+    case OperationKind.Instruction
+        ins := info op.mnemonic
+        switch ins.argc
+        case 0
+        case 1
+        case 2
+        default
+            ;
     default
         ;
 
@@ -332,13 +346,6 @@ fn compile (input)
             current-op.arg2 = arg
         else
             current-op.arg1 = arg
-
-    let ins-argc =
-        Scope->StringMap i32
-            do
-                mov := 2
-                int := 1
-                locals;
 
     TK := TokenKind
     loop (idx = 0:usize)
@@ -392,13 +399,13 @@ fn compile (input)
             if (stack-size == 0) # head of list
                 current-op.mnemonic = (copy sym)
                 current-op.kind = OperationKind.Instruction
-                let argc =
-                    try
-                        'get ins-argc sym
+
+                let info =
+                    try ('get ins-info sym)
                     else
                         parsing-error (.. "unknown instruction: " sym) input start
 
-                switch argc
+                switch info.argc
                 case 0
                     'append expect-stack (TK.expect 'EOL)
                 case 1
@@ -433,4 +440,4 @@ fn compile (input)
         next-idx
 
 bytecode := compile program1
-# interpret bytecode
+;
