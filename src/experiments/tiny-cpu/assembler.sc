@@ -50,7 +50,11 @@ enum TokenKind
             ...
 
     inline any-of? (value bitmask)
-        bitmask & (0x1:u32 << ('literal value))
+        bool (bitmask & (0x1:u32 << ('literal value)))
+
+    inline expecting? (field bitmask)
+        fT := getattr this-type field
+        bool ((0x1:u32 << fT.Literal) & bitmask)
 
     inline decode-expected (bitmask)
         local tags : (Array String)
@@ -82,10 +86,20 @@ enum TokenKind
             'Symbol
             'EOL
 
+enum OperationKind plain
+    Define
+    String
+    Bytes
+    Instruction
+    None
+
+    __typecall := (cls) -> this-type.None
+
 struct Operation
+    kind  : OperationKind
     mnemonic : String
-    arg1 : (Option TokenKind)
-    arg2 : (Option TokenKind)
+    arg1  : (Option TokenKind)
+    arg2  : (Option TokenKind)
 
 struct InstructionInfo
     mnemonic : String
@@ -93,10 +107,11 @@ struct InstructionInfo
     argc : i32
 
 global program1 : String
-    """"#define PRINT 0x01
+    """".define PRINT 0x01
         .asciiz msg "\thello, \"world\"\n"
+        .bytes  arr 0x20, 0x93, 0x97
 
-        mov acc, msg ;; this is a comment
+        load acc, msg ;; this is a comment
         int PRINT
 
 fn execute-instruction (ins)
@@ -221,7 +236,7 @@ fn parse-integer (input idx positive?)
         fold (value = 0) for i in (range (idx + 2) (countof input))
             d := input @ i
 
-            if ((whitespace? d) or d == "\n")
+            if ((whitespace? d) or d == "\n" or d == ",")
                 return (positive? value -value) i
 
             if (not (hex-digit? d))
@@ -327,7 +342,7 @@ fn compile (input)
     loop (idx = 0:usize)
         token start next-idx := next-token input idx
 
-        stack-size := (countof expect-stack)'unsafe-extract-payload
+        stack-size := (countof expect-stack)
         let expected =
             if (not (empty? expect-stack))
                 'pop expect-stack
@@ -336,7 +351,8 @@ fn compile (input)
                 current-op = (Operation)
                 TK.expect-line-start;
 
-        if (token == TK.EOF)
+        eof-expected? := TK.expecting? 'EOF expected
+        if (token == TK.EOF and (not eof-expected?))
             if (stack-size != 0)
                 parsing-error "unexpected end of file" input start
             break;
@@ -351,24 +367,30 @@ fn compile (input)
 
         dispatch (copy token)
         case Preprocessor (pre)
-            if (pre == "define")
-                current-op.mnemonic = pre
+        case Directive (directive)
+            current-op.mnemonic = (copy directive)
+            if (directive == "define")
+                current-op.kind = OperationKind.Define
                 'append expect-stack (TK.expect 'EOL)
                 'append expect-stack (TK.expect-value)
                 'append expect-stack (TK.expect 'Symbol)
-            else
-                parsing-error (.. "unknown preprocessor directive: " pre) input start
-        case Directive (directive)
-            if (directive == "asciiz")
+            elseif (directive == "asciiz" or directive == "ascii")
+                current-op.kind = OperationKind.String
                 'append expect-stack (TK.expect 'EOL)
                 'append expect-stack (TK.expect 'StringLiteral)
                 'append expect-stack (TK.expect 'Symbol)
-        case Integer (value)
-            push-arg token
+            elseif (directive == "bytes")
+                current-op.kind = OperationKind.Bytes
+                'append expect-stack (TK.expect 'Integer)
+                'append expect-stack (TK.expect 'Symbol)
+            else
+                parsing-error (.. "unknown directive: " directive) input start
         case StringLiteral (str)
             push-arg token
         case Symbol (sym)
             if (stack-size == 0) # head of list
+                current-op.mnemonic = (copy sym)
+                current-op.kind = OperationKind.Instruction
                 let argc =
                     try
                         'get ins-argc sym
@@ -383,14 +405,20 @@ fn compile (input)
                     'append expect-stack (TK.expect-operand)
                 case 2
                     'append expect-stack (TK.expect 'EOL)
-                    'append expect-stack (TK.expect-operand)
+                    'append expect-stack (TK.expect 'Symbol)
                     'append expect-stack (TK.expect 'Delimiter)
                     'append expect-stack (TK.expect-operand)
                 default
                     ;
             else
                 push-arg token
+        case Integer (value)
+            push-arg token
+            if (current-op.kind == OperationKind.Bytes)
+                'append expect-stack (TK.expect 'Delimiter 'EOL 'EOF)
         case Delimiter ()
+            if (current-op.kind == OperationKind.Bytes)
+                'append expect-stack (TK.expect 'Integer)
         case EOL ()
         case EOF ()
         default
