@@ -194,39 +194,39 @@ fn parse-integer (input idx positive?)
 fn next-token (input idx)
     idx := consume-whitespace input idx
     if (idx == (countof input))
-        return (TokenKind.EOF) idx
+        return (TokenKind.EOF idx) idx idx
 
     c := input @ idx
     if (c == "#")
         pre next-idx := parse-symbol input (idx + 1)
-        _ (TokenKind.Preprocessor pre) next-idx
+        _ (TokenKind.Preprocessor pre) idx next-idx
     elseif (c == ".")
         directive next-idx := parse-symbol input (idx + 1)
-        _ (TokenKind.Directive directive) next-idx
+        _ (TokenKind.Directive directive) idx next-idx
     elseif (digit? c)
         number next-idx := parse-integer input idx true
-        _ (TokenKind.Integer number) next-idx
+        _ (TokenKind.Integer number) idx next-idx
     elseif (c == "-")
         number next-idx := parse-integer input (idx + 1) false
-        _ (TokenKind.Integer number) next-idx
+        _ (TokenKind.Integer number) idx next-idx
     elseif (c == "\"")
         str next-idx := parse-string-literal input (idx + 1)
-        _ (TokenKind.StringLiteral str) next-idx
+        _ (TokenKind.StringLiteral str) idx next-idx
     elseif (c == ",")
-        _ (TokenKind.Delimiter) (idx + 1)
+        _ (TokenKind.Delimiter) idx (idx + 1)
     elseif (c == ";") # comment
-        _ (TokenKind.EOL) (consume-line input idx)
+        _ (TokenKind.EOL) idx (consume-line input idx)
     elseif (letter? c)
         sym next-idx := parse-symbol input idx
-        _ (TokenKind.Symbol sym) next-idx
+        _ (TokenKind.Symbol sym) idx next-idx
     elseif (c == "\n")
-        _ (TokenKind.EOL) (idx + 1)
+        _ (TokenKind.EOL) idx (idx + 1)
     else
-        _ (TokenKind.NotImplemented) idx
+        _ (TokenKind.NotImplemented) idx idx
 
 fn compile (input)
     loop (idx = 0:usize)
-        token next-idx := next-token input idx
+        token start next-idx := next-token input idx
 
         if (token == TokenKind.EOF)
             break;
