@@ -33,7 +33,7 @@ struct Instruction
 
 global program1 : String
     """"#define PRINT 0x01
-        .asciiz msg "hello, world\n"
+        .asciiz msg "\thello, \"world\"\n"
 
         mov acc, msg
         int PRINT
@@ -101,6 +101,8 @@ fn parse-string-literal (input idx)
                     char"\t"
                 case char"\\"
                     char"\\"
+                case char"\""
+                    char"\""
                 default
                     error "parser error: unknown character escape in string literal"
 
