@@ -10,6 +10,25 @@ using import Map
 using import String
 using import struct
 
+spice Scope->StringMap (valueT scope)
+    scope as:= Scope
+
+    expr :=
+        spice-quote
+            local strmap : (Map String valueT)
+
+    vvv bind expr
+    fold (expr = expr) for k v in scope
+        k := k as Symbol as string
+        spice-quote
+            expr
+            ('set strmap (String [k]) v)
+
+    spice-quote
+        expr
+        strmap
+run-stage;
+
 enum TokenKind
     Preprocessor  : String
     Directive     : String
@@ -54,6 +73,13 @@ enum TokenKind
             'Integer
             'Symbol
 
+    inline expect-line-start ()
+        this-type.expect
+            'Preprocessor
+            'Directive
+            'Symbol
+            'EOL
+
 enum SourceOperand
     None
     __typecall := (cls) -> (this-type.None)
@@ -74,6 +100,7 @@ global program1 : String
 
         mov acc, msg ;; this is a comment
         int PRINT
+        load blah
 
         ; "this shouldn't count as a string
         " and this shouldn't ;count as a comment"
@@ -263,18 +290,26 @@ fn next-token (input idx)
 fn compile (input)
     local expect-stack : (Array u32)
 
+    let ins-argc =
+        Scope->StringMap i32
+            do
+                mov := 2
+                int := 1
+                locals;
+
     TK := TokenKind
     loop (idx = 0:usize)
         token start next-idx := next-token input idx
 
+        stack-size := (countof expect-stack)
         let expected =
             if (not (empty? expect-stack))
                 'pop expect-stack
             else
-                TK.expect-any;
+                TK.expect-line-start;
 
         if (token == TK.EOF)
-            if (TK.any-of? token expected)
+            if (stack-size != 0)
                 parsing-error "unexpected end of file" input start
             break;
 
@@ -289,14 +324,39 @@ fn compile (input)
         dispatch token
         case Preprocessor (pre)
             if (pre == "define")
+                'append expect-stack (TK.expect 'EOL)
                 'append expect-stack (TK.expect-value)
                 'append expect-stack (TK.expect 'Symbol)
             else
                 parsing-error (.. "unknown preprocessor directive: " pre) input start
         case Directive (directive)
+            if (directive == "asciiz")
+                'append expect-stack (TK.expect 'EOL)
+                'append expect-stack (TK.expect 'StringLiteral)
+                'append expect-stack (TK.expect 'Symbol)
         case Integer (value)
         case StringLiteral (str)
         case Symbol (sym)
+            if (stack-size == 0) # head of list
+                let argc =
+                    try
+                        'get ins-argc sym
+                    else
+                        parsing-error (.. "unknown instruction: " sym) input start
+
+                switch argc
+                case 0
+                    'append expect-stack (TK.expect 'EOL)
+                case 1
+                    'append expect-stack (TK.expect 'EOL)
+                    'append expect-stack (TK.expect-operand)
+                case 2
+                    'append expect-stack (TK.expect 'EOL)
+                    'append expect-stack (TK.expect-operand)
+                    'append expect-stack (TK.expect 'Delimiter)
+                    'append expect-stack (TK.expect-operand)
+                default
+                    ;
         case Delimiter ()
         case EOL ()
         case EOF ()
