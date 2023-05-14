@@ -69,22 +69,6 @@ enum TokenKind
             'Label
             'EOL
 
-enum OperationKind plain
-    Define
-    String
-    Bytes
-    Instruction
-    Label
-    None
-
-    __typecall := (cls) -> this-type.None
-
-struct Operation
-    kind  : OperationKind
-    mnemonic : String
-    arg1  : (Option TokenKind)
-    arg2  : (Option TokenKind)
-
 inline letter? (c)
     c >= char"A" and c <= char"Z" or c >= char"a" and c <= char"z"
 
@@ -272,6 +256,23 @@ enum CompilationError plain
     IllegalExpansion
     WrongOperand
 
+enum OperationKind plain
+    Define
+    String
+    Bytes
+    Instruction
+    Label
+    None
+
+    __typecall := (cls) -> this-type.None
+
+struct Operation
+    kind  : OperationKind
+    mnemonic : String
+    arg1  : (Option TokenKind)
+    arg2  : (Option TokenKind)
+    bytes : (Array u8)
+
 fn compile-op (op)
     raising CompilationError
 
@@ -345,6 +346,8 @@ fn compile-op (op)
             'append RAM-image 0:u8
     case OperationKind.Bytes
         # copy bytes to RAM image
+        for b in op.bytes
+            'append RAM-image b
     case OperationKind.Instruction
         ins := info op.mnemonic
         if (is-jump? op.mnemonic)
@@ -499,9 +502,11 @@ fn compile (input)
                 parsing-error (.. "duplicated label: " sym) input start
             'set labels sym (countof bytecode)
         case Integer (value)
-            push-arg token
             if (current-op.kind == OperationKind.Bytes)
                 'append expect-stack (TK.expect 'Delimiter 'EOL 'EOF)
+                'append current-op.bytes (value as u8)
+            else
+                push-arg token
         case Delimiter ()
             if (current-op.kind == OperationKind.Bytes)
                 'append expect-stack (TK.expect 'Integer)
