@@ -85,15 +85,6 @@ struct Operation
     arg1  : (Option TokenKind)
     arg2  : (Option TokenKind)
 
-global program1 : String
-    """".define PRINT 0x01
-        .asciiz msg "\thello, \"world\"\n"
-        .bytes  arr 0x20, 0x93, 0x97
-
-        start:
-        load acc, msg ;; this is a comment
-        int PRINT
-
 inline letter? (c)
     c >= char"A" and c <= char"Z" or c >= char"a" and c <= char"z"
 
@@ -269,7 +260,7 @@ fn next-token (input idx)
         _ (TokenKind.NotImplemented) idx idx
 
 
-global define-map : (Map String TokenKind)
+global symbol-map : (Map String TokenKind)
 global labels     : (Map String usize)
 global RAM-image  : (Array u8)
 global bytecode   : (Array u8)
@@ -277,7 +268,9 @@ global ins-info = (instructions.build-instruction-table)
 
 enum CompilationError plain
     UnknownRegister
-
+    UnknownLabel
+    IllegalExpansion
+    WrongOperand
 
 fn compile-op (op)
     raising CompilationError
@@ -293,7 +286,12 @@ fn compile-op (op)
         'unsafe-extract-payload v T
 
     inline resolve-symbol (sym)
-        'getdefault define-map sym (TokenKind.None)
+        sym := copy sym
+        if (sym == TokenKind.Symbol)
+            copy
+                'getdefault symbol-map (extract (copy sym) String) sym
+        else
+            sym
 
     inline info (ins)
         'getdefault ins-info ins (instructions.InstructionInfo)
@@ -315,11 +313,26 @@ fn compile-op (op)
         default
             raise CompilationError.UnknownRegister
 
+    inline is-jump? (name)
+        match name
+        case "jmp" true
+        case "jnz" true
+        case "jz" true
+        default
+            false
+
+    inline emit8 (v)
+        'append bytecode (v as u8)
+    inline emit16 (v)
+        v as:= u16
+        'append bytecode (v as u8)
+        'append bytecode ((v >> 8) as u8)
+
     switch op.kind
     case OperationKind.Define
         arg1 arg2 := getargs 2
         sym := extract arg1 String
-        'set define-map (copy sym) (copy arg2)
+        'set symbol-map (copy sym) (copy arg2)
     case OperationKind.String
         # copy string to RAM image
         if (('last op.mnemonic) == "z")
@@ -328,10 +341,60 @@ fn compile-op (op)
         # copy bytes to RAM image
     case OperationKind.Instruction
         ins := info op.mnemonic
+        if (is-jump? op.mnemonic)
+            vvv bind jump-loc
+            try
+                'get labels (extract (getargs 1) String)
+            else
+                raise CompilationError.UnknownLabel
+
+            emit8 ins.opcode
+            emit16 jump-loc
+            return;
+
         switch ins.argc
         case 0
+            emit8 ins.opcode
         case 1
+            arg1 := getargs 1
+            arg1 := resolve-symbol arg1
+
+            dispatch arg1
+            case Integer (val)
+                if (op.mnemonic == "pop")
+                    # only instruction that can't take an immediate operand
+                    raise CompilationError.WrongOperand
+                emit8 ins.opcode
+                emit16 val
+            case Symbol (sym)
+                emit8 (ins.opcode & 0x80) # toggle register addressing bit
+                emit8 (get-register sym)
+            default
+                raise CompilationError.IllegalExpansion
         case 2
+            arg1 arg2 := getargs 2
+            arg1 := resolve-symbol arg1
+            arg2 := resolve-symbol arg2
+
+            # first arg is always register
+            vvv bind first-register
+            dispatch arg1
+            case Symbol (sym)
+                get-register sym
+            default
+                raise CompilationError.IllegalExpansion
+
+            dispatch arg2
+            case Symbol (sym)
+                emit8 (ins.opcode & 0x80) # toggle register addressing bit
+                emit8 first-register
+                emit8 (get-register sym)
+            case Integer (val)
+                emit8 ins.opcode
+                emit8 first-register
+                emit16 val
+            default
+                raise CompilationError.IllegalExpansion
         default
             ;
     default
@@ -356,7 +419,11 @@ fn compile (input)
             if (not (empty? expect-stack))
                 'pop expect-stack
             else
-                compile-op current-op
+                try
+                    compile-op current-op
+                except (ex)
+                    error (tostring ex)
+
                 current-op = (Operation)
                 TK.expect-line-start;
 
@@ -413,9 +480,9 @@ fn compile (input)
                     'append expect-stack (TK.expect-operand)
                 case 2
                     'append expect-stack (TK.expect 'EOL)
-                    'append expect-stack (TK.expect 'Symbol)
-                    'append expect-stack (TK.expect 'Delimiter)
                     'append expect-stack (TK.expect-operand)
+                    'append expect-stack (TK.expect 'Delimiter)
+                    'append expect-stack (TK.expect 'Symbol)
                 default
                     ;
             else
@@ -439,5 +506,16 @@ fn compile (input)
 
         next-idx
 
-bytecode := compile program1
+global program1 : String
+    """".define PRINT 0x01
+        .asciiz msg "\thello, \"world\"\n"
+        .bytes  arr 0x20, 0x93, 0x97
+
+        start:
+        load acc, 0x01 ;; this is a comment
+        int PRINT
+        jmp start
+
+compile program1
+print bytecode
 ;
