@@ -34,7 +34,7 @@ struct Instruction
 
 global program1 : String
     """"#define PRINT 0x01
-        .asciiz msg "\thello, \"world\"\n"
+        .asciiz msg "\thello, \"world\"\n" "
 
         mov acc, msg ;; this is a comment
         int PRINT
@@ -78,6 +78,35 @@ fn consume-line (input idx)
             return (i + 1)
     countof input
 
+fn build-error-message (msg input idx)
+    :: find-error-line
+    do
+        fold (line-count line-beg = 0 0:usize) for i c in (enumerate input)
+            if (i >= idx) # we're in the correct line
+                if (c == "\n" or (i == ((countof input) - 1)))
+                    merge find-error-line
+                        _ line-count (i - line-beg) (slice input line-beg i)
+
+                _ line-count line-beg
+            else
+                new-line? := c == "\n"
+                _
+                    new-line? (line-count + 1) line-count
+                    new-line? ((i as usize) + 1) line-beg
+        _ 0 idx (rslice input idx)
+    find-error-line (line column source-fragment) ::
+
+    anchor := .. (tostring line) ":" (tostring column) ":"
+    local uparrow : String
+    for i in (range ((countof anchor) + column - 1))
+        'append uparrow char" "
+    'append uparrow char"^"
+
+    err := .. "PARSER ERROR: " msg "\n" "while parsing:\n" anchor source-fragment "\n" uparrow
+
+inline parsing-error (msg input idx)
+    error ((build-error-message msg input idx) as string)
+
 fn parse-symbol (input idx)
     if (digit? (input @ idx))
         return S"" idx
@@ -98,7 +127,7 @@ fn parse-string-literal (input idx)
         c := input @ i
 
         if (c == "\n")
-            error "parser error: unexpected end of line inside string literal"
+            parsing-error "unexpected end of line inside string literal" input idx
 
         if (c == "\"")
             return str (i + 1)
@@ -115,7 +144,7 @@ fn parse-string-literal (input idx)
                 case char"\""
                     char"\""
                 default
-                    error "parser error: unknown character escape in string literal"
+                    parsing-error "unknown character escape in string literal" input idx
 
             'append str actual-char
 
@@ -124,14 +153,14 @@ fn parse-string-literal (input idx)
 
         'append str c
 
-    error "parser error: incomplete string literal, lacks closing quote"
+    parsing-error "incomplete string literal, lacks closing quote" input idx
 
 fn parse-integer (input idx positive?)
     vvv bind value
     if ((input @ idx == char"0") and (input @ (idx + 1) == char"x")) # is hex?
         first-digit := input @ (idx + 2)
         if (first-digit == 0 or (whitespace? first-digit) or first-digit == "\n")
-            error "parser error: incomplete integer literal"
+            parsing-error "incomplete integer literal" input idx
         fold (value = 0) for i in (range (idx + 2) (countof input))
             d := input @ i
 
@@ -139,7 +168,7 @@ fn parse-integer (input idx positive?)
                 return (positive? value -value) i
 
             if (not (hex-digit? d))
-                error "parser error: extraneous character in integer literal"
+                parsing-error "extraneous character in integer literal" input idx
 
             let next-value =
                 if (digit? d)
@@ -157,7 +186,7 @@ fn parse-integer (input idx positive?)
             if ((whitespace? d) or d == "\n")
                 return (positive? value -value) i
             if (not (digit? d))
-                error "parser error: extraneous character in integer literal"
+                parsing-error "extraneous character in integer literal" input idx
             (value * 10) + ((d - char"0") as i32)
 
     _ (positive? value -value) (countof input)
@@ -199,10 +228,13 @@ fn compile (input)
     loop (idx = 0:usize)
         token next-idx := next-token input idx
 
-        print token
-
         if (token == TokenKind.EOF)
             break;
+
+        # dispatch token
+        # default
+        #     error "illegal token at "
+        #     unreachable;
 
         next-idx
 
