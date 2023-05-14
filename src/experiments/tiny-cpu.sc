@@ -36,8 +36,11 @@ global program1 : String
     """"#define PRINT 0x01
         .asciiz msg "\thello, \"world\"\n"
 
-        mov acc, msg
+        mov acc, msg ;; this is a comment
         int PRINT
+
+        ; "this shouldn't count as a string
+        " and this shouldn't ;count as a comment"
 
 fn execute-instruction (ins)
     switch ins.opcode
@@ -66,6 +69,13 @@ fn consume-whitespace (input idx)
         if (not (whitespace? c))
             return i
 
+    countof input
+
+fn consume-line (input idx)
+    for i in (range idx (countof input))
+        c := input @ i
+        if (c == "\n")
+            return (i + 1)
     countof input
 
 fn parse-symbol (input idx)
@@ -175,6 +185,8 @@ fn next-token (input idx)
         _ (TokenKind.StringLiteral str) next-idx
     elseif (c == ",")
         _ (TokenKind.Delimiter) (idx + 1)
+    elseif (c == ";") # comment
+        _ (TokenKind.EOL) (consume-line input idx)
     elseif (letter? c)
         sym next-idx := parse-symbol input idx
         _ (TokenKind.Symbol sym) next-idx
@@ -187,10 +199,10 @@ fn compile (input)
     loop (idx = 0:usize)
         token next-idx := next-token input idx
 
+        print token
+
         if (token == TokenKind.EOF)
             break;
-
-        print token
 
         next-idx
 
