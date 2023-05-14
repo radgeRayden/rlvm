@@ -7,6 +7,7 @@
 using import Array
 using import enum
 using import Map
+using import Option
 using import String
 using import struct
 
@@ -27,6 +28,7 @@ spice Scope->StringMap (valueT scope)
     spice-quote
         expr
         strmap
+
 run-stage;
 
 enum TokenKind
@@ -80,19 +82,15 @@ enum TokenKind
             'Symbol
             'EOL
 
-enum SourceOperand
-    None
-    __typecall := (cls) -> (this-type.None)
+struct Operation
+    mnemonic : String
+    arg1 : (Option TokenKind)
+    arg2 : (Option TokenKind)
 
-
-enum DestinationOperand
-    None
-    __typecall := (cls) -> (this-type.None)
-
-struct Instruction
-    opcode : u64
-    src : SourceOperand
-    dst : DestinationOperand
+struct InstructionInfo
+    mnemonic : String
+    opcode : u8
+    argc : i32
 
 global program1 : String
     """"#define PRINT 0x01
@@ -100,10 +98,6 @@ global program1 : String
 
         mov acc, msg ;; this is a comment
         int PRINT
-        load blah
-
-        ; "this shouldn't count as a string
-        " and this shouldn't ;count as a comment"
 
 fn execute-instruction (ins)
     switch ins.opcode
@@ -287,8 +281,40 @@ fn next-token (input idx)
     else
         _ (TokenKind.NotImplemented) idx idx
 
+
+global define-map : (Map String TokenKind)
+global bytecode : (Array u8)
+
+
+fn compile-op (op)
+    inline getargs (argc)
+        static-if (argc == 1)
+            'force-unwrap op.arg1
+        else
+            _
+                'force-unwrap op.arg1
+                'force-unwrap op.arg2
+    inline extract (v T)
+        'unsafe-extract-payload v T
+
+    mnemonic := (bitcast (storagecast (hash op.mnemonic)) Symbol)
+    switch mnemonic
+    case 'define
+        arg1 arg2 := getargs 2
+        sym := extract arg1 String
+        'set define-map (copy sym) (copy arg2)
+    default
+        ;
+
 fn compile (input)
     local expect-stack : (Array u32)
+    local current-op : Operation
+
+    inline push-arg (arg)
+        if current-op.arg1
+            current-op.arg2 = arg
+        else
+            current-op.arg1 = arg
 
     let ins-argc =
         Scope->StringMap i32
@@ -301,11 +327,13 @@ fn compile (input)
     loop (idx = 0:usize)
         token start next-idx := next-token input idx
 
-        stack-size := (countof expect-stack)
+        stack-size := (countof expect-stack)'unsafe-extract-payload
         let expected =
             if (not (empty? expect-stack))
                 'pop expect-stack
             else
+                compile-op current-op
+                current-op = (Operation)
                 TK.expect-line-start;
 
         if (token == TK.EOF)
@@ -321,9 +349,10 @@ fn compile (input)
 
             parsing-error (.. "expected any of: " tk-list "got: " (tostring token)) input start
 
-        dispatch token
+        dispatch (copy token)
         case Preprocessor (pre)
             if (pre == "define")
+                current-op.mnemonic = pre
                 'append expect-stack (TK.expect 'EOL)
                 'append expect-stack (TK.expect-value)
                 'append expect-stack (TK.expect 'Symbol)
@@ -335,7 +364,9 @@ fn compile (input)
                 'append expect-stack (TK.expect 'StringLiteral)
                 'append expect-stack (TK.expect 'Symbol)
         case Integer (value)
+            push-arg token
         case StringLiteral (str)
+            push-arg token
         case Symbol (sym)
             if (stack-size == 0) # head of list
                 let argc =
@@ -357,6 +388,8 @@ fn compile (input)
                     'append expect-stack (TK.expect-operand)
                 default
                     ;
+            else
+                push-arg token
         case Delimiter ()
         case EOL ()
         case EOF ()
