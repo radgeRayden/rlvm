@@ -334,9 +334,15 @@ fn compile-op (op)
         sym := extract arg1 String
         'set symbol-map (copy sym) (copy arg2)
     case OperationKind.String
+        arg1 arg2 := getargs 2
+        sym := extract arg1 String
+        'set symbol-map (copy sym) (TokenKind.Integer ((countof RAM-image) as i32))
+
         # copy string to RAM image
+        for c in (extract arg2 String)
+            'append RAM-image (bitcast c u8)
         if (('last op.mnemonic) == "z")
-            # add zero
+            'append RAM-image 0:u8
     case OperationKind.Bytes
         # copy bytes to RAM image
     case OperationKind.Instruction
@@ -512,10 +518,9 @@ global program1 : String
         .bytes  arr 0x20, 0x93, 0x97
 
         start:
-        load acc, 0x01 ;; this is a comment
+        load acc, msg ;; this is a comment
         int PRINT
         jmp start
 
 compile program1
-print bytecode
 ;
