@@ -127,7 +127,7 @@ fn parse-string-literal (input idx)
         c := input @ i
 
         if (c == "\n")
-            parsing-error "unexpected end of line inside string literal" input idx
+            parsing-error "unexpected end of line inside string literal" input (idx - 1)
 
         if (c == "\"")
             return str (i + 1)
@@ -144,7 +144,7 @@ fn parse-string-literal (input idx)
                 case char"\""
                     char"\""
                 default
-                    parsing-error "unknown character escape in string literal" input idx
+                    parsing-error "unknown character escape in string literal" input i
 
             'append str actual-char
 
@@ -168,7 +168,7 @@ fn parse-integer (input idx positive?)
                 return (positive? value -value) i
 
             if (not (hex-digit? d))
-                parsing-error "extraneous character in integer literal" input idx
+                parsing-error "extraneous character in integer literal" input i
 
             let next-value =
                 if (digit? d)
@@ -186,7 +186,7 @@ fn parse-integer (input idx positive?)
             if ((whitespace? d) or d == "\n")
                 return (positive? value -value) i
             if (not (digit? d))
-                parsing-error "extraneous character in integer literal" input idx
+                parsing-error "extraneous character in integer literal" input i
             (value * 10) + ((d - char"0") as i32)
 
     _ (positive? value -value) (countof input)
