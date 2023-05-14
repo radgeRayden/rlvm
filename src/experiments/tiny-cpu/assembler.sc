@@ -32,11 +32,11 @@ spice Scope->StringMap (valueT scope)
 run-stage;
 
 enum TokenKind
-    Preprocessor  : String
     Directive     : String
     Integer       : i32
     StringLiteral : String
     Symbol        : String
+    Label         : String
     Delimiter
     EOL
     EOF
@@ -81,9 +81,9 @@ enum TokenKind
 
     inline expect-line-start ()
         this-type.expect
-            'Preprocessor
             'Directive
             'Symbol
+            'Label
             'EOL
 
 enum OperationKind plain
@@ -91,6 +91,7 @@ enum OperationKind plain
     String
     Bytes
     Instruction
+    Label
     None
 
     __typecall := (cls) -> this-type.None
@@ -111,7 +112,8 @@ global program1 : String
         .asciiz msg "\thello, \"world\"\n"
         .bytes  arr 0x20, 0x93, 0x97
 
-        load acc, msg ;; this is a comment
+        start:
+        mov acc, msg ;; this is a comment
         int PRINT
 
 fn execute-instruction (ins)
@@ -269,10 +271,7 @@ fn next-token (input idx)
         return (TokenKind.EOF idx) idx idx
 
     c := input @ idx
-    if (c == "#")
-        pre next-idx := parse-symbol input (idx + 1)
-        _ (TokenKind.Preprocessor pre) idx next-idx
-    elseif (c == ".")
+    if (c == ".")
         directive next-idx := parse-symbol input (idx + 1)
         _ (TokenKind.Directive directive) idx next-idx
     elseif (digit? c)
@@ -290,7 +289,10 @@ fn next-token (input idx)
         _ (TokenKind.EOL) idx (consume-line input idx)
     elseif (letter? c)
         sym next-idx := parse-symbol input idx
-        _ (TokenKind.Symbol sym) idx next-idx
+        if ((input @ next-idx) == ":")
+            _ (TokenKind.Label sym) idx (next-idx + 1)
+        else
+            _ (TokenKind.Symbol sym) idx next-idx
     elseif (c == "\n")
         _ (TokenKind.EOL) idx (idx + 1)
     else
@@ -298,8 +300,8 @@ fn next-token (input idx)
 
 
 global define-map : (Map String TokenKind)
+global labels : (Map String usize)
 global bytecode : (Array u8)
-
 
 fn compile-op (op)
     inline getargs (argc)
@@ -366,7 +368,6 @@ fn compile (input)
             parsing-error (.. "expected any of: " tk-list "got: " (tostring token)) input start
 
         dispatch (copy token)
-        case Preprocessor (pre)
         case Directive (directive)
             current-op.mnemonic = (copy directive)
             if (directive == "define")
@@ -412,6 +413,11 @@ fn compile (input)
                     ;
             else
                 push-arg token
+        case Label (sym)
+            current-op.kind = OperationKind.Label
+            if ('in? labels sym)
+                parsing-error (.. "duplicated label: " sym) input start
+            'set labels sym (countof bytecode)
         case Integer (value)
             push-arg token
             if (current-op.kind == OperationKind.Bytes)
