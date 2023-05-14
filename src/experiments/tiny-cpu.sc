@@ -21,11 +21,47 @@ enum TokenKind
     EOF
     NotImplemented
 
+    inline expect (...)
+        va-rfold 0:u32
+            inline (__ next result)
+                fT := getattr this-type next
+                result | (0x1:u32 << fT.Literal)
+            ...
+
+    inline any-of? (value bitmask)
+        bitmask & (0x1:u32 << ('literal value))
+
+    inline decode-expected (bitmask)
+        local tags : (Array String)
+        va-map
+            inline (fT)
+                if ((0x1 << fT.Literal) & bitmask)
+                    'append tags (String (tostring fT.Name))
+            this-type.__fields__
+        tags
+
+    inline expect-any ()
+        0xFFFFFFFF:u32
+
+    inline expect-value ()
+        this-type.expect
+            'Integer
+            'StringLiteral
+            'Symbol
+
+    inline expect-operand ()
+        this-type.expect
+            'Integer
+            'Symbol
+
 enum SourceOperand
     None
+    __typecall := (cls) -> (this-type.None)
+
 
 enum DestinationOperand
     None
+    __typecall := (cls) -> (this-type.None)
 
 struct Instruction
     opcode : u64
@@ -225,14 +261,38 @@ fn next-token (input idx)
         _ (TokenKind.NotImplemented) idx idx
 
 fn compile (input)
+    local expect-stack : (Array u32)
+
+    TK := TokenKind
     loop (idx = 0:usize)
         token start next-idx := next-token input idx
 
-        if (token == TokenKind.EOF)
+        let expected =
+            if (not (empty? expect-stack))
+                'pop expect-stack
+            else
+                TK.expect-any;
+
+        if (token == TK.EOF)
+            if (TK.any-of? token expected)
+                parsing-error "unexpected end of file" input start
             break;
+
+        if (not (TK.any-of? token expected))
+            possible-tk := TK.decode-expected expected
+            local tk-list : String
+            for tk in possible-tk
+                tk-list ..= tk .. ", "
+
+            parsing-error (.. "expected any of: " tk-list "got: " (tostring token)) input start
 
         dispatch token
         case Preprocessor (pre)
+            if (pre == "define")
+                'append expect-stack (TK.expect-value)
+                'append expect-stack (TK.expect 'Symbol)
+            else
+                parsing-error (.. "unknown preprocessor directive: " pre) input start
         case Directive (directive)
         case Integer (value)
         case StringLiteral (str)
