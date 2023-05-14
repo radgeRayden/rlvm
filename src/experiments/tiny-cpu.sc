@@ -11,6 +11,7 @@ using import String
 using import struct
 
 enum TokenKind
+    Preprocessor  : String
     Directive     : String
     Integer       : i32
     StringLiteral : String
@@ -158,6 +159,9 @@ fn next-token (input idx)
 
     c := input @ idx
     if (c == "#")
+        pre next-idx := parse-symbol input (idx + 1)
+        _ (TokenKind.Preprocessor pre) next-idx
+    elseif (c == ".")
         directive next-idx := parse-symbol input (idx + 1)
         _ (TokenKind.Directive directive) next-idx
     elseif (digit? c)
@@ -174,13 +178,12 @@ fn next-token (input idx)
     elseif (letter? c)
         sym next-idx := parse-symbol input idx
         _ (TokenKind.Symbol sym) next-idx
+    elseif (c == "\n")
+        _ (TokenKind.EOL) (idx + 1)
     else
         _ (TokenKind.NotImplemented) (idx + 1)
 
 fn compile (input)
-    local RAM : (Array u8)
-    'resize RAM (2 ** 16 - 1) # 64kb
-
     loop (idx = 0:usize)
         token next-idx := next-token input idx
 
