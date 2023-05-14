@@ -34,7 +34,7 @@ struct Instruction
 
 global program1 : String
     """"#define PRINT 0x01
-        .asciiz msg "\thello, \"world\"\n" "
+        .asciiz msg "\thello, \"world\"\n"
 
         mov acc, msg ;; this is a comment
         int PRINT
@@ -85,7 +85,7 @@ fn build-error-message (msg input idx)
             if (i >= idx) # we're in the correct line
                 if (c == "\n" or (i == ((countof input) - 1)))
                     merge find-error-line
-                        _ line-count (i - line-beg) (slice input line-beg i)
+                        _ line-count (idx - line-beg) (slice input line-beg i)
 
                 _ line-count line-beg
             else
@@ -98,7 +98,7 @@ fn build-error-message (msg input idx)
 
     anchor := .. (tostring line) ":" (tostring column) ":"
     local uparrow : String
-    for i in (range ((countof anchor) + column - 1))
+    for i in (range ((countof anchor) + column))
         'append uparrow char" "
     'append uparrow char"^"
 
@@ -222,7 +222,7 @@ fn next-token (input idx)
     elseif (c == "\n")
         _ (TokenKind.EOL) (idx + 1)
     else
-        _ (TokenKind.NotImplemented) (idx + 1)
+        _ (TokenKind.NotImplemented) idx
 
 fn compile (input)
     loop (idx = 0:usize)
@@ -231,10 +231,17 @@ fn compile (input)
         if (token == TokenKind.EOF)
             break;
 
-        # dispatch token
-        # default
-        #     error "illegal token at "
-        #     unreachable;
+        dispatch token
+        case Preprocessor (pre)
+        case Directive (directive)
+        case Integer (value)
+        case StringLiteral (str)
+        case Symbol (sym)
+        case Delimiter ()
+        case EOL ()
+        case EOF ()
+        default
+            parsing-error "unexpected character in input stream" input next-idx
 
         next-idx
 
