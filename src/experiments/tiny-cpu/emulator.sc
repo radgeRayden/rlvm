@@ -130,22 +130,53 @@ fn execute ()
             src := (get-val)
             @dst = src
         case ins.SWAP
+            a b := (get-reg), (get-reg)
+            sh = @a
+            @a = @b
+            @b = sh
         case ins.PUSH
+            'append stack (get-val)
         case ins.POP
+            dst := (get-reg)
+            @dst = ('pop stack)
         case ins.ADD
+            v := (get-val)
+            acc += v
         case ins.SUB
+            v := (get-val)
+            acc -= v
         case ins.MUL
+            v := (get-val)
+            acc *= v
         case ins.DIV
+            v := (get-val)
+            acc //= v
         case ins.AND
+            v := (get-val)
+            acc &= v
         case ins.OR
+            v := (get-val)
+            acc |= v
         case ins.XOR
+            v := (get-val)
+            acc ^= v
         case ins.JMP
             jmp-dst := (get-val)
             next = jmp-dst
         case ins.JZ
+            jmp-dst := (get-val)
+            if (acc == 0)
+                next = jmp-dst
         case ins.JNZ
+            jmp-dst := (get-val)
+            if (acc != 0)
+                next = jmp-dst
         case ins.SHL
+            v := (get-val)
+            acc <<= v
         case ins.SHR
+            v := (get-val)
+            acc >>= v
         case ins.INT
             idx := (get-val)
             interrupt idx
