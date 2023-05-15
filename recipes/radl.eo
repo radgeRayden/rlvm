@@ -1,0 +1,14 @@
+VERSION := "master"
+SUMMARY := "radge's utility library"
+
+src :=
+    commonpath
+        extract
+            download "https://github.com/radgeRayden/radl/archive/{VERSION}.tar.gz"
+
+package radl
+    summary SUMMARY
+    version VERSION
+    platform linux windows-mingw unknown
+
+    in "/lib/scopes/packages/radl" "{src}/src"
