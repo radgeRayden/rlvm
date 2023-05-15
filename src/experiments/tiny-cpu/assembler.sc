@@ -535,7 +535,7 @@ static-if main-module?
             error (.. "failed to read file: " (tostring ex))
 
     compile source-code
-    'resize RAM-image 0xFFFF
+    'resize RAM-image (0xFFFF + 1)
     try
         file-io.write-file (path .. ".bin") RAM-image
         file-io.append-file (path .. ".bin") bytecode
