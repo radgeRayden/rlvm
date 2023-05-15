@@ -517,15 +517,29 @@ fn compile (input)
 
         next-idx
 
-global program1 : String
-    """".define PRINT 0x01
-        .asciiz msg "\thello, \"world\"\n"
-        .bytes  arr 0x20, 0x93, 0x97
+static-if main-module?
+    name argc argv := (script-launch-args)
+    if (argc == 0)
+        print "usage: scopes -e assembler.sc file.s"
+        exit 1
 
-        start:
-        load acc, msg ;; this is a comment
-        int PRINT
-        jmp start
+    strlen  := from (import C.string) let strlen
+    file-io := import radl.file-io
 
-compile program1
-;
+    path := argv @ 0
+    path := (String path (strlen path))
+
+    let source-code =
+        try (file-io.read-text-file path)
+        except (ex)
+            error (.. "failed to read file: " (tostring ex))
+
+    compile source-code
+    'resize RAM-image 0xFFFF
+    try
+        file-io.write-file (path .. ".bin") RAM-image
+        file-io.append-file (path .. ".bin") bytecode
+    except (ex)
+        error (.. "failed to write file: " (tostring ex))
+else
+    ;
