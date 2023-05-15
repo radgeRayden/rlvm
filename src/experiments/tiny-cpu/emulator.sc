@@ -36,6 +36,15 @@ global sh : u16
 
 global stack : (Array u16)
 
+fn interrupt (idx)
+    switch idx
+    case 1 # PRINT
+        using import C.stdio
+        addr := acc
+        printf "%s" ((& (RAM @ (addr as usize))) as (@ i8)) # can we make this safer?
+    default
+        error "unknown interrupt triggered"
+
 fn execute ()
     loop (idx = 0:usize)
         if (idx >= (countof code))
@@ -93,14 +102,14 @@ fn execute ()
             if ((countof RAM) <= (addr + 1))
                 error (.. "out of bounds memory access at " (tostring (deref next)))
             lo hi := content as u8, (content >> 8) as u8
-            RAM @ addr     = lo
-            RAM @ addr + 1 = hi
+            RAM @ addr       = lo
+            RAM @ (addr + 1) = hi
 
         inline get-mem ()
             let addr =
                 if register-addr?
                     reg := (get-reg)
-                    @reg as usize
+                    deref (@reg as u16)
                 else
                     get16;
 
@@ -110,12 +119,16 @@ fn execute ()
         switch opcode
         case ins.LOAD
             dst := (get-reg)
-            @dst = (get-mem)
+            src := (get-val)
+            @dst = mem-read src
         case ins.STORE
             src := (get-reg)
             dst := (get-val)
-            mem-write dst
+            mem-write dst @src
         case ins.COPY
+            dst := (get-reg)
+            src := (get-val)
+            @dst = src
         case ins.SWAP
         case ins.PUSH
         case ins.POP
@@ -127,11 +140,15 @@ fn execute ()
         case ins.OR
         case ins.XOR
         case ins.JMP
+            jmp-dst := (get-val)
+            next = jmp-dst
         case ins.JZ
         case ins.JNZ
         case ins.SHL
         case ins.SHR
         case ins.INT
+            idx := (get-val)
+            interrupt idx
         default
             using import radl.strfmt
             error
