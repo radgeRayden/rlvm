@@ -1,0 +1,59 @@
+Brief description:
+
+registers:
+    u16 acc
+    u16 r0
+    u16 r1
+    u16 r2
+    u16 r3
+    u16 sh
+
+load dst,src       ;; load from memory location pointed to by value or register
+store src,dst      ;; store value in register src at memory location pointed to by value or register
+copy dst,src       ;; copy value or register src into register dst
+swap a,b           ;; swap value of two registers without intermediate (intermediate is saved into sh)
+push val           ;; push register or value into stack
+pop  reg           ;; pop stack into register
+add  val           ;; add value of register or constant with acc (acc = acc + val)
+sub  val           ;; subtract value of register or constant with acc (acc = acc - val)
+mul  val           ;; multiply value of register or constant with acc (acc = acc * val)
+div  val           ;; integer divide value of register or constant with acc (acc = acc / val)
+and  val           ;; acc = acc & val
+or   val           ;; acc = acc | val
+xor  val           ;; acc = acc ^ val
+jmp  label         ;; unconditional jump to label
+jz   label         ;; jump to label if acc is zero
+jnz  label         ;; jump to label if acc is not zero
+shl  val           ;; reg = reg << val
+shr  val           ;; reg = reg >> val
+int  val           ;; call interrupt
+
+Encoding:
+0 0 0 0 0 0 0 0     1 byte opcode
+| v v v v v v v
+| ∟——————————————⇾  7 LSB encode which instruction it is
+| 
+∟————————————————⇾  8th bit encodes if it takes register operand
+
+Examples:
+
+;; load from memory into register
+load(dst, src)
+    load r0, acc        ;; r0 = RAM @ acc
+    load r0, 0xdead     ;; r0 = RAM @ 0xdead
+
+;; store data from register or value into memory
+store(src, dst)
+    store r0, 0xdead    ;; RAM @ 0xdead = r0
+    store r0, acc       ;; RAM @ acc = r0
+
+copy(dst, src)
+    copy r0, acc        ;; r0 = acc
+    copy r0, 0xdead     ;; r0 = 0xdead
+
+swap(a, b)
+    swap r0, acc        ;; sr = r0; r0 = acc; acc = sr
+
+jmp start
+shl 0xdead
+add acc
