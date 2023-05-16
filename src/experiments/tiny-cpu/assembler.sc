@@ -13,62 +13,6 @@ using import struct
 
 import .instructions
 
-enum TokenKind
-    Directive     : String
-    Integer       : i32
-    StringLiteral : String
-    Symbol        : String
-    Label         : String
-    Delimiter
-    EOL
-    EOF
-    None
-    NotImplemented
-
-    inline expect (...)
-        va-rfold 0:u32
-            inline (__ next result)
-                fT := getattr this-type next
-                result | (0x1:u32 << fT.Literal)
-            ...
-
-    inline any-of? (value bitmask)
-        bool (bitmask & (0x1:u32 << ('literal value)))
-
-    inline expecting? (field bitmask)
-        fT := getattr this-type field
-        bool ((0x1:u32 << fT.Literal) & bitmask)
-
-    inline decode-expected (bitmask)
-        local tags : (Array String)
-        va-map
-            inline (fT)
-                if ((0x1 << fT.Literal) & bitmask)
-                    'append tags (String (tostring fT.Name))
-            this-type.__fields__
-        tags
-
-    inline expect-any ()
-        0xFFFFFFFF:u32
-
-    inline expect-value ()
-        this-type.expect
-            'Integer
-            'StringLiteral
-            'Symbol
-
-    inline expect-operand ()
-        this-type.expect
-            'Integer
-            'Symbol
-
-    inline expect-line-start ()
-        this-type.expect
-            'Directive
-            'Symbol
-            'Label
-            'EOL
-
 inline letter? (c)
     c >= char"A" and c <= char"Z" or c >= char"a" and c <= char"z"
 
@@ -210,6 +154,68 @@ fn parse-integer (input idx positive?)
 
     _ (positive? value -value) (countof input)
 
+enum TokenKind
+    Directive     : String
+    Integer       : i32
+    StringLiteral : String
+    Symbol        : String
+    Label         : String
+    Delimiter
+    EOL
+    EOF
+    None
+    NotImplemented
+
+    inline expect (...)
+        va-rfold 0:u32
+            inline (__ next result)
+                fT := getattr this-type next
+                result | (0x1:u32 << fT.Literal)
+            ...
+
+    inline any-of? (value bitmask)
+        bool (bitmask & (0x1:u32 << ('literal value)))
+
+    inline expecting? (field bitmask)
+        fT := getattr this-type field
+        bool ((0x1:u32 << fT.Literal) & bitmask)
+
+    inline decode-expected (bitmask)
+        local tags : (Array String)
+        va-map
+            inline (fT)
+                if ((0x1 << fT.Literal) & bitmask)
+                    'append tags (String (tostring fT.Name))
+            this-type.__fields__
+        tags
+
+    inline expect-any ()
+        0xFFFFFFFF:u32
+
+    inline expect-value ()
+        this-type.expect
+            'Integer
+            'StringLiteral
+            'Symbol
+
+    inline expect-operand ()
+        this-type.expect
+            'Integer
+            'Symbol
+
+    inline expect-line-start ()
+        this-type.expect
+            'Directive
+            'Symbol
+            'Label
+            'EOL
+
+global symbol-map : (Map String TokenKind)
+global labels     : (Map String usize)
+global RAM-image  : (Array u8)
+global bytecode   : (Array u8)
+global ins-info = (instructions.build-instruction-table)
+
 fn next-token (input idx)
     idx := consume-whitespace input idx
     if (idx == (countof input))
@@ -238,17 +244,12 @@ fn next-token (input idx)
             _ (TokenKind.Label sym) idx (next-idx + 1)
         else
             _ (TokenKind.Symbol sym) idx next-idx
+    elseif (c == "$")
+        _ (TokenKind.Integer ((countof bytecode) as i32)) idx (idx + 1)
     elseif (c == "\n")
         _ (TokenKind.EOL) idx (idx + 1)
     else
         _ (TokenKind.NotImplemented) idx idx
-
-
-global symbol-map : (Map String TokenKind)
-global labels     : (Map String usize)
-global RAM-image  : (Array u8)
-global bytecode   : (Array u8)
-global ins-info = (instructions.build-instruction-table)
 
 enum CompilationError plain
     UnknownRegister
@@ -273,7 +274,14 @@ struct Operation
     arg2  : (Option TokenKind)
     bytes : (Array u8)
 
-fn compile-op (op)
+struct UnresolvedJump
+    origin : usize
+    target : String
+    anchor : usize
+
+global unresolved-jumps : (Array UnresolvedJump)
+
+fn compile-op (op anchor)
     raising CompilationError
 
     inline getargs (argc)
@@ -351,14 +359,24 @@ fn compile-op (op)
     case OperationKind.Instruction
         ins := info op.mnemonic
         if (is-jump? op.mnemonic)
-            vvv bind jump-loc
-            try
-                'get labels (extract (getargs 1) String)
-            else
-                raise CompilationError.UnknownLabel
-
-            emit8 ins.opcode
-            emit16 jump-loc
+            arg := getargs 1
+            if (arg == TokenKind.Symbol)
+                name := extract arg String
+                try # will fail if not a register
+                    reg := get-register name
+                    emit8 (ins.opcode | 0x80) # toggle register addressing bit
+                    emit8 reg
+                else
+                    emit8 ins.opcode
+                    'append unresolved-jumps
+                        UnresolvedJump
+                            origin = (countof bytecode)
+                            target = (copy name)
+                            anchor = anchor
+                    emit16 0:u16
+            else # Integer
+                emit8 ins.opcode
+                emit16 (extract arg i32)
             return;
 
         switch ins.argc
@@ -367,7 +385,6 @@ fn compile-op (op)
         case 1
             arg1 := getargs 1
             arg1 := resolve-symbol arg1
-
             dispatch arg1
             case Integer (val)
                 if (op.mnemonic == "pop")
@@ -429,7 +446,7 @@ fn compile (input)
                 'pop expect-stack
             else
                 try
-                    compile-op current-op
+                    compile-op current-op start
                 except (ex)
                     error (tostring ex)
 
@@ -516,6 +533,16 @@ fn compile (input)
             parsing-error "unexpected character in input stream" input next-idx
 
         next-idx
+
+    # link labels
+    for j in unresolved-jumps
+        try
+            loc := 'get labels j.target
+            hi lo := ((loc >> 8) as u8), (loc as u8)
+            bytecode @ j.origin       = lo
+            bytecode @ (j.origin + 1) = hi
+        else
+            parsing-error "unknown label" input (deref j.anchor)
 
 static-if main-module?
     name argc argv := (script-launch-args)
