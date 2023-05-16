@@ -376,7 +376,7 @@ fn compile-op (op)
                 emit8 ins.opcode
                 emit16 val
             case Symbol (sym)
-                emit8 (ins.opcode & 0x80) # toggle register addressing bit
+                emit8 (ins.opcode | 0x80) # toggle register addressing bit
                 emit8 (get-register sym)
             default
                 raise CompilationError.IllegalExpansion
@@ -395,7 +395,7 @@ fn compile-op (op)
 
             dispatch arg2
             case Symbol (sym)
-                emit8 (ins.opcode & 0x80) # toggle register addressing bit
+                emit8 (ins.opcode | 0x80) # toggle register addressing bit
                 emit8 first-register
                 emit8 (get-register sym)
             case Integer (val)
