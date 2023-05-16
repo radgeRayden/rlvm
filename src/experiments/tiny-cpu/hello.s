@@ -10,8 +10,5 @@ subroutine:
     jmp r0
 
 start:
-    copy acc, $
-    add 12 ;; copy(3) + add(3) + push(3) + jmp(3)
-    push acc
-    jmp subroutine
+    call subroutine
     jmp start

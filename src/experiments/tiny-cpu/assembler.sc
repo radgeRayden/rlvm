@@ -327,6 +327,7 @@ fn compile-op (op anchor)
         case "jmp" true
         case "jnz" true
         case "jz" true
+        case "call" true
         default
             false
 

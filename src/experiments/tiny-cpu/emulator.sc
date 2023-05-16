@@ -22,6 +22,7 @@ enum Instructions plain
     SHL
     SHR
     INT
+    CALL
 
 MEMORY-SIZE := 2 ** 16:usize
 
@@ -180,6 +181,10 @@ fn execute ()
         case ins.INT
             idx := (get-val)
             interrupt idx
+        case ins.CALL
+            jmp-dst := (get-val)
+            'append stack (next as u16)
+            next = jmp-dst
         default
             using import radl.strfmt
             error

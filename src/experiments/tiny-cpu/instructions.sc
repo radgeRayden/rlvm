@@ -23,6 +23,7 @@ itable :=
         shl    1 {i r}
         shr    1 {i r}
         int    1 {i r}
+        call   1 {i r}
 
 struct InstructionInfo plain
     opcode   : u8
