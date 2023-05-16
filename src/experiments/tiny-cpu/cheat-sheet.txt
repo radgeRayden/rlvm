@@ -21,12 +21,13 @@ div  val           ;; integer divide value of register or constant with acc (acc
 and  val           ;; acc = acc & val
 or   val           ;; acc = acc | val
 xor  val           ;; acc = acc ^ val
-jmp  label         ;; unconditional jump to label
-jz   label         ;; jump to label if acc is zero
-jnz  label         ;; jump to label if acc is not zero
+jmp  label         ;; unconditional jump to location
+jz   label         ;; jump to location if acc is zero
+jnz  label         ;; jump to location if acc is not zero
 shl  val           ;; reg = reg << val
 shr  val           ;; reg = reg >> val
 int  val           ;; call interrupt
+call label         ;; jump to location, and push the address for the next instruction into the stack
 
 Encoding:
 0 0 0 0 0 0 0 0     1 byte opcode
@@ -54,6 +55,11 @@ copy(dst, src)
 swap(a, b)
     swap r0, acc        ;; sr = r0; r0 = acc; acc = sr
 
-jmp start
 shl 0xdead
 add acc
+
+;; all jump type instructions accept a label name, a register containing the address or
+;; the address as a constant.
+jnz 0xdead
+call acc
+jmp start
