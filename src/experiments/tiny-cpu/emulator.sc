@@ -199,13 +199,15 @@ static-if main-module?
         exit 1
 
     strlen  := from (import C.string) let strlen
-    file-io := import radl.file-io
+    IO := import radl.IO
 
     path := argv @ 0
     path := (String path (strlen path))
 
     let ROM =
-        try (file-io.read-binary-file path)
+        try
+            file := IO.FileStream path IO.FileMode.Read
+            'read-all-bytes file
         except (ex)
             error (.. "failed to read file: " (tostring ex))
 

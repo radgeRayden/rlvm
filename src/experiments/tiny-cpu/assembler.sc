@@ -550,23 +550,23 @@ static-if main-module?
     if (argc == 0)
         print "usage: scopes -e assembler.sc file.s"
         exit 1
-
-    strlen  := from (import C.string) let strlen
-    file-io := import radl.file-io
-
     path := argv @ 0
-    path := (String path (strlen path))
 
+    IO := import radl.IO
     let source-code =
-        try (file-io.read-text-file path)
+        try
+            file := IO.FileStream path IO.FileMode.Read
+            'read-all-string file
         except (ex)
-            error (.. "failed to read file: " (tostring ex))
+            error (.. "failed to open file: " (tostring ex))
 
     compile source-code
     'resize RAM-image (0xFFFF + 1)
     try
-        file-io.write-file (path .. ".bin") RAM-image
-        file-io.append-file (path .. ".bin") bytecode
+        binpath := (String path) .. ".bin"
+        file := IO.FileStream binpath IO.FileMode.Write
+        'write file RAM-image
+        'write file bytecode
     except (ex)
         error (.. "failed to write file: " (tostring ex))
 else
