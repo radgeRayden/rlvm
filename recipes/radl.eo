@@ -11,4 +11,4 @@ package radl
     version VERSION
     platform linux windows-mingw unknown
 
-    in "/lib/scopes/packages/radl" "{src}/src"
+    alias "/lib/scopes/packages/radl" "{src}/src"
