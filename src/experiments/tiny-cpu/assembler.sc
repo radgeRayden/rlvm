@@ -545,8 +545,7 @@ fn compile (input)
         else
             parsing-error "unknown label" input (deref j.anchor)
 
-static-if main-module?
-    name argc argv := (script-launch-args)
+fn main (argc argv)
     if (argc == 0)
         print "usage: scopes -e assembler.sc file.s"
         exit 1
@@ -569,5 +568,9 @@ static-if main-module?
         'write file bytecode
     except (ex)
         error (.. "failed to write file: " (tostring ex))
+
+static-if main-module?
+    name argc argv := (script-launch-args)
+    main argc argv
 else
-    ;
+    main

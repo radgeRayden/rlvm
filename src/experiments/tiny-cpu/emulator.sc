@@ -192,8 +192,7 @@ fn execute ()
 
         deref next
 
-static-if main-module?
-    name argc argv := (script-launch-args)
+fn main (argc argv)
     if (argc == 0)
         print "usage: scopes -e emulator.sc file.bin"
         exit 1
@@ -229,5 +228,9 @@ static-if main-module?
     memcpy dst src code-size
 
     execute;
+
+static-if main-module?
+    name argc argv := (script-launch-args)
+    main argc argv
 else
-    ;
+    main
