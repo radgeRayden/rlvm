@@ -11,6 +11,12 @@ using import Option
 using import String
 using import struct
 
+using import radl.strfmt
+
+inline error (message)
+    print message
+    exit 1
+
 import .instructions
 
 inline letter? (c)
@@ -59,7 +65,7 @@ fn build-error-message (msg input idx)
         _ 0 idx (rslice input idx)
     find-error-line (line column source-fragment) ::
 
-    anchor := .. (tostring line) ":" (tostring column) ":"
+    anchor := f"${line}:${column}:"
     local uparrow : String
     for i in (range ((countof anchor) + column))
         'append uparrow char" "
@@ -214,7 +220,9 @@ global symbol-map : (Map String TokenKind)
 global labels     : (Map String usize)
 global RAM-image  : (Array u8)
 global bytecode   : (Array u8)
-global ins-info = (instructions.build-instruction-table)
+global ins-info : (Map String instructions.InstructionInfo) =
+    inline ()
+        instructions.build-instruction-table;
 
 fn next-token (input idx)
     idx := consume-whitespace input idx
@@ -569,7 +577,7 @@ fn main (argc argv)
     except (ex)
         error (.. "failed to write file: " (tostring ex))
 
-static-if main-module?
+sugar-if main-module?
     name argc argv := (script-launch-args)
     main argc argv
 else

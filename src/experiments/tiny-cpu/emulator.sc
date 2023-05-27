@@ -2,6 +2,10 @@ using import Array
 using import enum
 using import String
 
+inline error (msg)
+    print msg
+    exit 1
+
 enum Instructions plain
     LOAD
     STORE
@@ -95,13 +99,15 @@ fn execute ()
 
         inline mem-read (addr)
             if ((countof RAM) <= (addr + 1))
-                error (.. "out of bounds memory access at " (tostring (deref next)))
+                using import radl.strfmt
+                error f"out of bounds memory access at ${next}"
             lo hi := RAM @ addr, RAM @ (addr + 1)
             (hi as u16) << 8 | (lo as u16)
 
         inline mem-write (addr content)
             if ((countof RAM) <= (addr + 1))
-                error (.. "out of bounds memory access at " (tostring (deref next)))
+                using import radl.strfmt
+                error "out of bounds memory access at ${next}"
             lo hi := content as u8, (content >> 8) as u8
             RAM @ addr       = lo
             RAM @ (addr + 1) = hi
@@ -188,7 +194,7 @@ fn execute ()
         default
             using import radl.strfmt
             error
-                string f"unknown opcode at ${idx}; aborting"
+                f"unknown opcode at ${idx}; aborting"
 
         deref next
 
@@ -229,7 +235,7 @@ fn main (argc argv)
 
     execute;
 
-static-if main-module?
+sugar-if main-module?
     name argc argv := (script-launch-args)
     main argc argv
 else
