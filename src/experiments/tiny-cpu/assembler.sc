@@ -220,9 +220,7 @@ global symbol-map : (Map String TokenKind)
 global labels     : (Map String usize)
 global RAM-image  : (Array u8)
 global bytecode   : (Array u8)
-global ins-info : (Map String instructions.InstructionInfo) =
-    inline ()
-        instructions.build-instruction-table;
+global ins-info : (Map String instructions.InstructionInfo) = () -> (instructions.build-instruction-table)
 
 fn next-token (input idx)
     idx := consume-whitespace input idx
