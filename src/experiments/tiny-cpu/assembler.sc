@@ -17,7 +17,7 @@ inline error (message)
     print message
     exit 1
 
-import .instructions
+using import .instructions
 
 inline letter? (c)
     c >= char"A" and c <= char"Z" or c >= char"a" and c <= char"z"
@@ -220,7 +220,7 @@ global symbol-map : (Map String TokenKind)
 global labels     : (Map String usize)
 global RAM-image  : (Array u8)
 global bytecode   : (Array u8)
-global ins-info : (Map String instructions.InstructionInfo) = () -> (instructions.build-instruction-table)
+global ins-info : (Map String InstructionInfo) = build-instruction-table
 
 fn next-token (input idx)
     idx := consume-whitespace input idx
@@ -309,7 +309,7 @@ fn compile-op (op anchor)
             sym
 
     inline info (ins)
-        'getdefault ins-info ins (instructions.InstructionInfo)
+        'getdefault ins-info ins (InstructionInfo)
 
     inline get-register (name)
         match name
