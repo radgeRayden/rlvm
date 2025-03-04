@@ -10,6 +10,8 @@ using import Map
 using import Option
 using import String
 using import struct
+using import slice
+using import radl.IO.FileStream
 
 using import radl.strfmt
 
@@ -54,7 +56,7 @@ fn build-error-message (msg input idx)
             if (i >= idx) # we're in the correct line
                 if (c == "\n" or (i == ((countof input) - 1)))
                     merge find-error-line
-                        _ line-count (idx - line-beg) (slice input line-beg i)
+                        _ line-count (idx - line-beg) (trim (slice input line-beg i))
 
                 _ line-count line-beg
             else
@@ -62,7 +64,7 @@ fn build-error-message (msg input idx)
                 _
                     new-line? (line-count + 1) line-count
                     new-line? ((i as usize) + 1) line-beg
-        _ 0 idx (rslice input idx)
+        _ 0 idx (trim (rslice input idx))
     find-error-line (line column source-fragment) ::
 
     anchor := f"${line}:${column}:"
@@ -84,10 +86,10 @@ fn parse-symbol (input idx)
         c := input @ i
         valid-char? := (letter? c) or (digit? c) or c == "_"
         if (not valid-char?)
-            return (slice input idx i) i
+            return (trim (slice (view input) idx i)) i
 
     _
-        rslice input idx
+        trim (rslice (view input) idx)
         countof input
 
 fn parse-string-literal (input idx)
@@ -557,10 +559,9 @@ fn main (argc argv)
         exit 1
     path := argv @ 0
 
-    IO := import radl.IO
     let source-code =
         try
-            file := IO.FileStream path IO.FileMode.Read
+            file := FileStream path FileMode.Read
             'read-all-string file
         except (ex)
             error (.. "failed to open file: " (tostring ex))
@@ -568,8 +569,8 @@ fn main (argc argv)
     compile source-code
     'resize RAM-image (0xFFFF + 1)
     try
-        binpath := (String path) .. ".bin"
-        file := IO.FileStream binpath IO.FileMode.Write
+        binpath := ('from-rawstring String path) .. ".bin"
+        file := FileStream binpath FileMode.Write
         'write file RAM-image
         'write file bytecode
     except (ex)
