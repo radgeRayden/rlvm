@@ -204,14 +204,14 @@ fn main (argc argv)
         exit 1
 
     strlen  := from (import C.string) let strlen
-    IO := import radl.IO
+    using import radl.IO.FileStream
 
     path := argv @ 0
     path := (String path (strlen path))
 
     let ROM =
         try
-            file := IO.FileStream path IO.FileMode.Read
+            file := FileStream path FileMode.Read
             'read-all-bytes file
         except (ex)
             error (.. "failed to read file: " (tostring ex))
@@ -223,9 +223,9 @@ fn main (argc argv)
 
     'resize RAM MEMORY-SIZE
 
-    src := (imply ROM pointer) as (@ i8)
-    dst := (imply RAM pointer) as (mutable@ i8)
-    memcpy dst src MEMORY-SIZE
+    src := 'data ROM
+    dst := 'data RAM
+    memcpy (dst as (mutable@ i8)) (src as (@ i8)) MEMORY-SIZE
 
     code-size := (countof ROM) - MEMORY-SIZE
     'resize code code-size
