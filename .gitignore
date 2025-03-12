@@ -6,3 +6,8 @@
 /obj/
 /**/**.o
 /**/**.bin
+.doit.db
+.gdb_history
+last_task.txt
+errors.err
+stderr.log
