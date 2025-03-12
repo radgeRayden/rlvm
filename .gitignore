@@ -4,3 +4,5 @@
 /lib/scopes/packages
 /lib/*.so
 /obj/
+/**/**.o
+/**/**.bin
