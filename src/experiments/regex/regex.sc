@@ -6,7 +6,6 @@ sugar not-implemented ()
             local v = false
             if v
                 assert v "not implemented"
-run-stage;
 
 exit := (extern 'exit (function void i32))
 inline exit (status)
@@ -33,6 +32,7 @@ enum ErrorKind plain
     TruncatedPattern
     UnbalancedBracket
     UnknownSpecifier
+    MalformedRepetition
 
 struct RegexMatch
     line : i32
@@ -53,27 +53,72 @@ enum RepetitionCount
     ZeroOrMoreLazy
     OneOrMore
     OneOrMoreLazy
-    ExplicitCount : i32 i32
+    ExplicitRange : i32 i32
 
 struct Atom
     kind : AtomKind
-    repetition : RepetitionCount = (RepetitionCount.ExplicitCount 1 1)
+    repetition : RepetitionCount = (RepetitionCount.ExplicitRange 1 1)
+
+fn parse-integer (subpattern)
+    returning usize i32
+    not-implemented;
+    _ 0:usize 0
 
 fn parse-repetition (subpattern)
     not-implemented;
     if (empty? subpattern)
-        return 0:usize (RepetitionCount.ExplicitCount 1 1)
+        return 0:usize (RepetitionCount.ExplicitRange 1 1)
 
     match (subpattern @ 0)
     case "+"
+        if (((countof subpattern) >= 2) and ((subpattern @ 1) == "?"))
+            _ 2:usize
+                (RepetitionCount.OneOrMoreLazy)
+        else
+            _ 1:usize
+                (RepetitionCount.OneOrMore)
     case "*"
+        if (((countof subpattern) >= 2) and ((subpattern @ 1) == "?"))
+            _ 2:usize
+                (RepetitionCount.ZeroOrMoreLazy)
+        else
+            _ 1:usize
+                (RepetitionCount.ZeroOrMore)
     case "{"
-    default
-        ()
+        # find closing bracket
+        vvv bind found? inner
+        fold (found? inner = false S"") for idx c in (enumerate subpattern)
+            if (c == "}")
+                break true (trim (slice (view subpattern) 1 (idx - 1)))
+            _ found? inner
 
-    _
-        0:usize
-        RepetitionCount.ExplicitCount 1 1
+        if (not found?)
+            raise ErrorKind.UnbalancedBracket
+
+        consumed-lhs min-count := parse-integer inner
+        if (consumed-lhs == 0)
+            raise ErrorKind.MalformedRepetition
+
+        if (consumed-lhs == (countof inner)) 
+            return (1 + consumed-lhs + 1) # { + inner + }
+                RepetitionCount.ExplicitRange min-count min-count
+
+        # if that was not all, then it must be the form {\d,\d}
+        if (not (((countof inner) > (consumed-lhs + 2)) and ((inner @ consumed-lhs) == ","))) 
+            raise ErrorKind.MalformedRepetition
+        
+        consumed-rhs max-count := parse-integer (slice (view inner) (consumed-lhs + 1) (countof inner))
+
+        if ((consumed-lhs + 1 + consumed-rhs) < (countof inner))
+            raise ErrorKind.MalformedRepetition
+
+        _ (1 + (countof inner) + 1)
+            RepetitionCount.ExplicitRange min-count max-count
+        
+    default
+        _
+            0:usize
+            RepetitionCount.ExplicitRange 1 1
 
 fn parse-character-class (subpattern)
     if (empty? subpattern)
@@ -115,10 +160,10 @@ fn parse-pattern (pattern)
             'append result (Atom kind repetition)
             idx + 2 + consumed
         case "^"
-            'append result (Atom (AtomKind.LineStart) (RepetitionCount.ExplicitCount 1))
+            'append result (Atom (AtomKind.LineStart) (RepetitionCount.ExplicitRange 1))
             idx + 1
         case "$"
-            'append result (Atom (AtomKind.LineEnd) (RepetitionCount.ExplicitCount 1))
+            'append result (Atom (AtomKind.LineEnd) (RepetitionCount.ExplicitRange 1))
             idx + 1
         case "."
             consumed repetition := parse-repetition (rslice (view pattern) (idx + 1))
