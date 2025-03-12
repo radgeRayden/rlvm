@@ -264,3 +264,16 @@ fn main (argc argv)
         exit 1
 
     0
+
+sugar-if main-module?
+    name argc argv := (script-launch-args)
+
+    local argv : (Array rawstring)
+    'append argv (name as rawstring)
+
+    for i in (range argc)
+        'append argv (argv @ i)
+
+    main (argc + 1) argv
+else
+    main
