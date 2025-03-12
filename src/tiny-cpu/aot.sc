@@ -24,4 +24,4 @@ compile-object
 using import C.stdlib
 system f"gcc -o ./bin/tiny-cpu ${module-dir}/tiny-cpu.o -L./lib -lstb -lscopesrt -Wl,-rpath '-Wl,$ORIGIN/../lib'"
 system f"./bin/tiny-cpu assemble ${module-dir}/hello.s"
-system f"./bin/tiny-cpu emulate ${module-dir}/hello.s.bin"
+# system f"./bin/tiny-cpu emulate ${module-dir}/hello.s.bin"

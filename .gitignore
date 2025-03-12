@@ -1,5 +1,6 @@
 /bin/
 /.eo/
 /include/
-/lib/
+/lib/scopes/packages
+/lib/*.so
 /obj/

@@ -3,7 +3,7 @@ using import Array enum Option print radl.IO.FileStream radl.strfmt String struc
 sugar not-implemented ()
     qq
         do
-            local v = false
+            local v = true
             if v
                 assert v "not implemented"
 
@@ -106,7 +106,7 @@ fn parse-repetition (subpattern)
         # if that was not all, then it must be the form {\d,\d}
         if (not (((countof inner) > (consumed-lhs + 2)) and ((inner @ consumed-lhs) == ","))) 
             raise ErrorKind.MalformedRepetition
-        
+
         consumed-rhs max-count := parse-integer (slice (view inner) (consumed-lhs + 1) (countof inner))
 
         if ((consumed-lhs + 1 + consumed-rhs) < (countof inner))
@@ -114,7 +114,7 @@ fn parse-repetition (subpattern)
 
         _ (1 + (countof inner) + 1)
             RepetitionCount.ExplicitRange min-count max-count
-        
+
     default
         _
             0:usize
@@ -256,9 +256,12 @@ fn main (argc argv)
 
     try
         for line in ('lines file)
-            matches := string-match line pattern
-            for m in matches
-                print f"MATCH: ${m.line}:${m.column}: ${m.text}"
+            try
+                matches := string-match line pattern
+                for m in matches
+                    print f"MATCH: ${m.line}:${m.column}: ${m.text}"
+            except (ex)
+                print ex
     else 
         print "Unexpected error while reading input"
         exit 1
