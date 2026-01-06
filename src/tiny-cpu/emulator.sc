@@ -47,6 +47,8 @@ fn interrupt (idx)
         using import C.stdio
         addr := acc
         printf "%s" ((& (RAM @ (addr as usize))) as (@ i8)) # can we make this safer?
+    case 2 # HALT
+        exit 0
     default
         error "unknown interrupt triggered"
 

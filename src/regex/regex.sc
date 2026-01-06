@@ -60,12 +60,16 @@ struct Atom
     repetition : RepetitionCount = (RepetitionCount.ExplicitRange 1 1)
 
 fn parse-integer (subpattern)
-    returning usize i32
-    not-implemented;
-    _ 0:usize 0
+    vvv bind result
+    fold (result = 0) for i c in (enumerate subpattern)
+        if (c < char"0" or c > char"9")
+            return (usize i) result
+        else
+            (result * 10) + (i32 (c - char"0"))
+ 
+    _ (countof subpattern) result
 
 fn parse-repetition (subpattern)
-    not-implemented;
     if (empty? subpattern)
         return 0:usize (RepetitionCount.ExplicitRange 1 1)
 
@@ -193,6 +197,9 @@ fn string-match (text pattern)
         return matches
 
     loop (idx matching? match-start pattern-idx repetition-count = 0 false -1 0 0)
+        if (idx == ((countof text) + 1))
+            break;
+
         c := text @ idx
         atom := pattern @ pattern-idx
 
@@ -239,6 +246,7 @@ fn string-match (text pattern)
                 repeat (idx + 1) true idx (pattern-idx + 1) repetition-count
             else
                 repeat (idx + 1) false -1 0 repetition-count
+    matches
 
 fn main (argc argv)
     if (argc != 3)
