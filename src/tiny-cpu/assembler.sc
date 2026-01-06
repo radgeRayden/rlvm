@@ -362,6 +362,9 @@ fn compile-op (op anchor)
         if (('last op.mnemonic) == "z")
             'append RAM-image 0:u8
     case OperationKind.Bytes
+        arg1 := getargs 1
+        sym := extract arg1 String
+        'set symbol-map (copy sym) (TokenKind.Integer ((countof RAM-image) as i32))
         # copy bytes to RAM image
         for b in op.bytes
             'append RAM-image b
